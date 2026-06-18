@@ -7,12 +7,20 @@ export const metadata = {
   description: "Browse our collection of handcrafted artisan furniture.",
 };
 
-export default async function CatalogPage() {
+export default async function CatalogPage(props: { searchParams?: Promise<{ category?: string }> }) {
+  const searchParams = await props.searchParams;
+  const categoryFilter = searchParams?.category;
+
+  const categories = await db.category.findMany({
+    orderBy: { name: 'asc' }
+  });
+
   const products = await db.product.findMany({
     where: {
       status: {
         not: 'HIDDEN'
-      }
+      },
+      ...(categoryFilter ? { categoryId: categoryFilter } : {})
     },
     include: {
       category: true,
@@ -35,6 +43,24 @@ export default async function CatalogPage() {
         <p className="text-gray-400 max-w-2xl text-lg">
           Each piece is uniquely handcrafted, bearing the marks of its material&apos;s history and the maker&apos;s intent.
         </p>
+      </div>
+
+      <div className="mb-12 flex flex-wrap gap-4">
+        <Link 
+          href="/catalog"
+          className={`px-6 py-2 text-xs uppercase tracking-widest font-medium rounded-sm border transition-colors ${!categoryFilter ? 'bg-primary text-primary-foreground border-primary' : 'bg-zinc-900/50 text-gray-400 border-glass-border hover:bg-white/5'}`}
+        >
+          All
+        </Link>
+        {categories.map(cat => (
+          <Link 
+            key={cat.id}
+            href={`/catalog?category=${cat.id}`}
+            className={`px-6 py-2 text-xs uppercase tracking-widest font-medium rounded-sm border transition-colors ${categoryFilter === cat.id ? 'bg-primary text-primary-foreground border-primary' : 'bg-zinc-900/50 text-gray-400 border-glass-border hover:bg-white/5'}`}
+          >
+            {cat.name}
+          </Link>
+        ))}
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-10">
