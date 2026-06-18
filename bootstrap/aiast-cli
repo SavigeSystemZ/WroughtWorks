@@ -1,0 +1,65 @@
+#!/usr/bin/env bash
+# aiast-cli — on-demand launcher for the lean Go validator accelerator.
+#
+# The compiled binary is a *build artifact* (gitignored, under bootstrap/.bin/),
+# NOT a committed blob. This small tracked launcher materializes it from
+# src/aiast-cli the first time a validator needs it, then execs it. That keeps
+# the template/fleet free of a multi-megabyte platform-specific binary while
+# preserving "just works" behavior on any machine that has a Go toolchain.
+#
+# Force a rebuild any time with:  AIAST_CLI_REBUILD=1 bootstrap/aiast-cli ...
+# Or build explicitly with:        bootstrap/build-aiast-cli.sh
+set -euo pipefail
+
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+BIN_DIR="${SCRIPT_DIR}/.bin"
+BIN="${BIN_DIR}/aiast-cli"
+SRC_DIR="${SCRIPT_DIR}/../src/aiast-cli"
+SUBCMD="${1:-}"
+
+# The Go binary is an OPTIONAL accelerator. When it cannot be materialized — for
+# ANY reason (no Go toolchain, missing source, OR a build failure such as stale
+# pre-pivot source that references removed deps) — the read-only validator
+# subcommands (check-*) degrade to a neutral graceful SKIP so a machine still
+# passes system-doctor / update-template instead of hard-failing. This keeps the
+# "works without the binary / portable / just-works" contract true regardless of
+# WHY the binary is unavailable.
+#
+# AIAST_REQUIRE_CLI=1 (the factory/CI lane sets it) makes the binary mandatory
+# and turns the skip back into a hard failure, so environments that are supposed
+# to build the binary never silently skip validation. Operational subcommands
+# (compact/doctor/validate) are NEVER skipped: they do real work and must fail
+# loudly when they cannot run.
+graceful_skip_or_fail() {
+  local reason="$1"   # no-go-toolchain | build-failed
+  if [[ "${SUBCMD}" == check-* && "${AIAST_REQUIRE_CLI:-0}" != "1" ]]; then
+    echo "${SUBCMD}_skipped reason=${reason} (optional validator accelerator)" >&2
+    exit 0
+  fi
+  echo "aiast-cli: validator accelerator unavailable (${reason})." >&2
+  if [[ "${AIAST_REQUIRE_CLI:-0}" == "1" ]]; then
+    echo "  AIAST_REQUIRE_CLI=1 is set, so this is a hard failure." >&2
+  else
+    echo "  This binary is an optional validator accelerator." >&2
+  fi
+  if [[ "${reason}" == build-failed ]]; then
+    echo "  See ${BIN_DIR}/build.log for the build error." >&2
+  else
+    echo "  Install Go and rerun, or run bootstrap/build-aiast-cli.sh on a machine with Go." >&2
+  fi
+  exit 69
+}
+
+if [[ "${AIAST_CLI_REBUILD:-0}" == "1" || ! -x "${BIN}" ]]; then
+  if command -v go >/dev/null 2>&1 && [[ -d "${SRC_DIR}" ]]; then
+    mkdir -p "${BIN_DIR}"
+    if ! ( cd "${SRC_DIR}" && go build -o "${BIN}" ./cmd/aiast ) 2>"${BIN_DIR}/build.log"; then
+      echo "aiast-cli: build failed — see ${BIN_DIR}/build.log" >&2
+      graceful_skip_or_fail build-failed
+    fi
+  elif [[ ! -x "${BIN}" ]]; then
+    graceful_skip_or_fail no-go-toolchain
+  fi
+fi
+
+exec "${BIN}" "$@"

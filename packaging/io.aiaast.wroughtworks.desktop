@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=WroughtWorks
+Comment=Launch WroughtWorks
+Exec=wroughtworks
+Icon=io.aiaast.wroughtworks
+Terminal=false
+Categories=Utility;
+StartupNotify=true

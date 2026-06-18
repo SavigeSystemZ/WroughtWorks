@@ -1,0 +1,8 @@
+# aiast-cli build artifacts (binary is built on demand, never committed)
+bootstrap/.bin/
+src/aiast-cli/aiast-cli
+# Phase-1 safe-sync local backups
+.update_backups/
+# Deferred Swarm Event-Bus (Phase 4) runtime data, if ever re-enabled
+.nats-data/
+_system/.nats-data/

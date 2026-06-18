@@ -1,0 +1,25 @@
+name: wroughtworks
+base: core24
+version: "0.1.0"
+summary: WroughtWorks packaged from an AIAST project scaffold
+description: |
+  Generic Snap scaffold for WroughtWorks.
+  Review plugs, confinement, and launch command before release.
+
+grade: devel
+confinement: strict
+
+apps:
+  wroughtworks:
+    command: bin/wroughtworks
+    plugs:
+      - network
+      - network-bind
+      - home
+
+parts:
+  wroughtworks:
+    plugin: dump
+    source: .
+    organize:
+      dist/wroughtworks: bin/wroughtworks

@@ -1,0 +1,23 @@
+# Bootstrap scripts that write shared state without an inline lease.
+# They are orchestrated under lock by the lane or are deterministic
+# idempotent regenerators. A NEW shared-state writer must lock or be
+# justified here. Regenerate with check-write-command-lease-coverage.sh --update-baseline.
+agent-reclaim-lock.sh
+apply-host-settings.sh
+check-registry-contract-graph.sh
+emit-archetype-pack.sh
+generate-capabilities-sheet.sh
+generate-host-adapters.sh
+generate-operating-profile.sh
+generate-super-template-master-map.sh
+generate-system-key.sh
+generate-system-nervous-system.sh
+generate-system-registry.sh
+init-agent-instance.sh
+quarantine-agent.sh
+reap-stale-leases.sh
+reconcile-meta-sync.sh
+release-agent.sh
+review-improvement-candidate.sh
+tag-improvement-candidate.sh
+validate-system.sh

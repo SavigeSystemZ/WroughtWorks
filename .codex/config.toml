@@ -1,0 +1,16 @@
+# Per-app preserve-first Codex CLI config.
+# Customize freely. The meta-managed sibling .codex/config.aiaast.toml
+# carries fleet-wide policy and must not be edited here.
+# See _system/HOST_SETTINGS_BASELINE.md.
+
+model = "gpt-5.5"
+# default = "gpt-5-codex"
+
+[approval]
+# mode = "auto-edit"   # one of: manual | auto-suggest | auto-edit | full-auto
+
+[tools]
+# allowed = []
+
+[mcp_servers]
+# add per-app servers here; meta-managed pointer in .codex/config.aiaast.toml

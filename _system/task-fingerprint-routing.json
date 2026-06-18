@@ -1,0 +1,66 @@
+{
+  "_comment": "Deterministic task -> read-bundle routing. bootstrap/classify-task-fingerprint.sh scores a task description against these signals and recommends the smallest useful READ_BUNDLES.md bundle, so an agent loads the right context instead of guessing or reading everything. Bundle names MUST match headings in _system/READ_BUNDLES.md (verified by --check). On no/ambiguous match the classifier stops and asks the agent to clarify before broad edits.",
+  "version": "1.0.0",
+  "routes": [
+    {
+      "id": "new-app",
+      "bundle": "Repo Onboarding Bundle",
+      "patterns": ["\\bnew (app|project)\\b", "\\bcreate (a|an|the)? ?(app|project)", "\\bscaffold\\b", "\\bbootstrap (a|an|the)? ?(app|project|repo)", "\\bstart (a|an) (new )?(app|project)"],
+      "also": "bootstrap/new-aiast-app.sh; APP_REPO_IDENTITY.md; app archetype presets"
+    },
+    {
+      "id": "improve-aiast",
+      "bundle": "Template Evolution Bundle",
+      "patterns": ["\\bimprove (aiast|the (meta-?system|template))", "\\bmeta-?system\\b", "\\b(edit|change|harden) the template", "\\bnew validator\\b", "\\bnervous system\\b", "\\bregistry contract"],
+      "also": "SYSTEM_NERVOUS_SYSTEM.md; validate-master-template.sh"
+    },
+    {
+      "id": "packaging-mobile",
+      "bundle": "Packaging And Distribution Bundle",
+      "patterns": ["\\b(android|apk|ios|ipa)\\b", "\\bbuild (the )?(app|binary|installer|package)", "\\bpackag(e|ing)\\b", "\\bdistribut(e|ion)\\b", "\\binstaller\\b"],
+      "also": "Mobile / Desktop-CLI preset in READ_BUNDLES.md"
+    },
+    {
+      "id": "security",
+      "bundle": "Infra/security-heavy preset",
+      "patterns": ["\\bsecurity\\b", "\\bthreat model", "\\bvuln(erabilit)?", "\\bsast\\b", "\\bpentest", "\\bharden(ing)? security", "\\bauth(entication|orization)\\b"],
+      "also": "run-sast.sh; scan-security.sh"
+    },
+    {
+      "id": "adapter-prompt",
+      "bundle": "Adapter And Host Emission Bundle",
+      "patterns": ["\\bprompt pack\\b", "\\b(host )?adapter\\b", "\\bhost prompt", "\\bcursor (rule|overlay)", "\\bcopilot\\b", "\\bgenerate-host-adapters"],
+      "also": "host-adapter-manifest.json; generate-host-adapters.sh"
+    },
+    {
+      "id": "release",
+      "bundle": "Release And Readiness Bundle",
+      "patterns": ["\\brelease\\b", "\\bship (it|the)", "\\bcut (a )?(release|version|tag)", "\\bversion bump", "\\brelease packet"],
+      "also": "RELEASE_READINESS_PROTOCOL.md; generate-release-packet.sh"
+    },
+    {
+      "id": "runtime-bug",
+      "bundle": "Runtime Foundations Bundle",
+      "patterns": ["\\bbug\\b", "\\bfix(es|ing)?\\b", "\\b(it'?s |is )?broken\\b", "\\b(error|crash|fail(s|ed|ing)?)\\b", "\\bdoesn'?t (work|run|build)", "\\binstall (issue|error)", "\\bservice (won'?t|fails)"],
+      "also": "VALIDATION_GATES.md; system-doctor.sh; check-runtime-foundations.sh"
+    },
+    {
+      "id": "repo-pivot",
+      "bundle": "Repo Pivot Bundle",
+      "patterns": ["\\bpivot\\b", "\\brepurpose\\b", "\\bchange (the )?(domain|direction)", "\\brewrite (the )?app", "\\bstart over\\b"],
+      "also": "PROJECT_PIVOT_PROTOCOL.md"
+    },
+    {
+      "id": "design-ui",
+      "bundle": "Web/API preset",
+      "patterns": ["\\bui\\b", "\\bux\\b", "\\bdesign\\b", "\\bpolish\\b", "\\bfrontend\\b", "\\btheme\\b", "\\baccessib(le|ility)", "\\bweb (app|api)\\b"],
+      "also": "design-system/THEME_GOVERNANCE.md"
+    },
+    {
+      "id": "data-ai",
+      "bundle": "Data/AI preset",
+      "patterns": ["\\b(ml|machine learning)\\b", "\\bai agent\\b", "\\bmodel(ing|s)?\\b", "\\bdataset\\b", "\\bllm\\b", "\\bembedding", "\\bpipeline\\b"],
+      "also": "Data/AI preset in READ_BUNDLES.md"
+    }
+  ]
+}

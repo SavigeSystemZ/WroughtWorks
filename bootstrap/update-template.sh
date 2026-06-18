@@ -1,0 +1,438 @@
+#!/usr/bin/env bash
+# update-template.sh — Apply additive AIAST updates to an installed repo (preserve-first; --refresh-managed / --prune-managed optional).
+set -euo pipefail
+
+SCRIPT_DIR="${AIAST_UPDATE_SCRIPT_DIR:-$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)}"
+DEFAULT_TEMPLATE_ROOT="$(cd -- "${SCRIPT_DIR}/.." && pwd)"
+# shellcheck source=bootstrap/lib/aiaast-lib.sh
+source "${SCRIPT_DIR}/lib/aiaast-lib.sh"
+
+usage() {
+  cat <<'EOF'
+Usage: update-template.sh <target-repo> [--source <template-root>] [--profile NAME]
+                          [--strict] [--dry-run] [--refresh-managed] [--prune-managed]
+
+Apply additive AIAST updates and optionally refresh drifted template-managed files.
+--prune-managed additionally removes files under fully template-owned trees
+(src/aiast-cli/) that the template no longer ships, backing each up to
+.update_backups/pruned/ first (fixes stale removed-upstream files breaking builds).
+
+Preserve-first: stateful repo-owned paths (for example TODO.md, PLAN.md,
+PRODUCT_BRIEF.md, WHERE_LEFT_OFF.md, _system/context/*.md) are excluded from
+template diff refresh, but --refresh-managed still copies any other drifted
+template-managed file from the source template. Commit or snapshot the repo
+before using --refresh-managed on important branches.
+EOF
+}
+
+TARGET_REPO=""
+SOURCE="${DEFAULT_TEMPLATE_ROOT}"
+PROFILE=""
+STRICT=0
+DRY_RUN=0
+REFRESH_MANAGED=0
+PRUNE_MANAGED=0
+
+AIAST_UPDATE_ORIGINAL_ARGS=("$@")
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --source)
+      SOURCE="${2:-}"
+      shift 2
+      ;;
+    --profile)
+      PROFILE="${2:-}"
+      shift 2
+      ;;
+    --strict)
+      STRICT=1
+      shift
+      ;;
+    --dry-run)
+      DRY_RUN=1
+      shift
+      ;;
+    --refresh-managed)
+      REFRESH_MANAGED=1
+      shift
+      ;;
+    --prune-managed)
+      PRUNE_MANAGED=1
+      shift
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      if [[ -z "${TARGET_REPO}" ]]; then
+        TARGET_REPO="$1"
+        shift
+      else
+        echo "Unexpected argument: $1" >&2
+        exit 1
+      fi
+      ;;
+  esac
+done
+
+if [[ -z "${TARGET_REPO}" ]]; then
+  usage
+  exit 1
+fi
+
+if [[ ! -d "${TARGET_REPO}" ]]; then
+  echo "Target repo does not exist: ${TARGET_REPO}" >&2
+  exit 1
+fi
+
+if [[ ${DRY_RUN} -eq 0 ]]; then
+  aiaast_assert_non_root_for_repo_writes
+fi
+
+RESOLVED_TEMPLATE="$(cd -- "${SOURCE}" && pwd)"
+aiaast_assert_template_root "${RESOLVED_TEMPLATE}"
+RESOLVED_TARGET="$(cd -- "${TARGET_REPO}" && pwd)"
+
+if [[ "${RESOLVED_TEMPLATE}" == "${RESOLVED_TARGET}" ]]; then
+  echo "Source and target resolve to the same directory: ${RESOLVED_TEMPLATE}" >&2
+  echo "Use --source <template-root> when updating an installed repo from the canonical AIAST template root." >&2
+  exit 1
+fi
+
+# Self-refresh guard: if the installed copy of this script drifts from the
+# source template, re-exec from a tempfile copy of the source version before
+# touching any managed files. Bash reads scripts as a buffered stream, so
+# rewriting the running script in place mid-execution corrupts the parser
+# (classic symptom: "unexpected EOF while looking for matching quote" past
+# the original line count). Re-execing from a stable tempfile avoids that.
+if [[ "${AIAST_UPDATE_REEXEC:-0}" != "1" && ${DRY_RUN} -eq 0 ]]; then
+  source_self="${RESOLVED_TEMPLATE}/bootstrap/update-template.sh"
+  running_self="${BASH_SOURCE[0]}"
+  if [[ -f "${source_self}" && -f "${running_self}" ]]; then
+    if ! diff -q "${source_self}" "${running_self}" >/dev/null 2>&1; then
+      reexec_tmp="$(mktemp --suffix=.sh 2>/dev/null || mktemp -t aiaast-update.XXXXXX.sh)"
+      cp -p "${source_self}" "${reexec_tmp}"
+      chmod +x "${reexec_tmp}" 2>/dev/null || true
+      export AIAST_UPDATE_REEXEC=1
+      export AIAST_UPDATE_REEXEC_TMP="${reexec_tmp}"
+      export AIAST_UPDATE_SCRIPT_DIR="${SCRIPT_DIR}"
+      echo "AIAST update: re-executing from stable copy of source update-template.sh at ${reexec_tmp}"
+      if [[ ${#AIAST_UPDATE_ORIGINAL_ARGS[@]} -gt 0 ]]; then
+        exec bash "${reexec_tmp}" "${AIAST_UPDATE_ORIGINAL_ARGS[@]}"
+      else
+        exec bash "${reexec_tmp}"
+      fi
+    fi
+  fi
+fi
+
+if [[ -n "${AIAST_UPDATE_REEXEC_TMP:-}" ]]; then
+  trap 'rm -f "${AIAST_UPDATE_REEXEC_TMP}"' EXIT
+fi
+
+source_version="$(aiaast_template_version "${RESOLVED_TEMPLATE}")"
+installed_version="$(aiaast_template_version "${RESOLVED_TARGET}")"
+readme_dest="$(aiaast_detect_system_readme_path "${RESOLVED_TARGET}")"
+PROFILE="$(aiaast_resolve_scaffold_profile "${RESOLVED_TARGET}" "${PROFILE}")"
+bash "${RESOLVED_TARGET}/bootstrap/check-working-directory-alignment.sh" "${RESOLVED_TARGET}"
+bash "${RESOLVED_TARGET}/bootstrap/check-project-target-consistency.sh" "${RESOLVED_TARGET}"
+bash "${RESOLVED_TARGET}/bootstrap/emit-session-environment.sh" "${RESOLVED_TARGET}"
+always_refresh_files=(
+  "AIAST_VERSION.md"
+  "AIAST_CHANGELOG.md"
+  "bootstrap/aiast"
+  "bootstrap/gitops.sh"
+  "bootstrap/generate-system-key.sh"
+  "bootstrap/generate-host-adapters.sh"
+  "bootstrap/generate-capabilities-sheet.sh"
+  "bootstrap/lib/aiaast-lib.sh"
+  "bootstrap/lib/aiaast-core.sh"
+  "bootstrap/lib/aiaast-json.sh"
+  "bootstrap/lib/aiaast-classify.sh"
+  "bootstrap/lib/aiaast-repo.sh"
+  "bootstrap/lib/aiaast-sync.sh"
+  "bootstrap/lib/aiaast-managed.sh"
+  "bootstrap/lib/aiaast-lock.sh"
+  "bootstrap/render-scaffold-profile.sh"
+  "bootstrap/update-template.sh"
+  "bootstrap/validate-scaffold-output.sh"
+  "bootstrap/check-scaffold-required-files.sh"
+  "bootstrap/check-mos-downstream-exclusion.sh"
+  "_system/.template-version"
+  "_system/gitops-policy.json"
+  "_system/GIT_REMOTE_AND_SYNC_PROTOCOL.md"
+  "_system/GIT_SIDE_MIRROR_POLICY.md"
+  "_system/SINGLE_FOUNDER_GIT_OPERATING_SYSTEM.md"
+  "_system/aiaast-capabilities.json"
+  "_system/instruction-precedence.json"
+  "_system/host-adapter-manifest.json"
+  "_system/MCP_CONFIG.md"
+  "_system/mcp/MCP_SELECTION_POLICY.md"
+  "_system/mcp/MCP_SERVER_CATALOG.md"
+  "_system/mcp/servers.cursor.example.json"
+  "_system/mcp/servers.codex.example.toml"
+  "_system/HOST_SETTINGS_BASELINE.md"
+  ".claude/settings.aiaast.json"
+  ".github/copilot-config.aiaast.json"
+  ".codex/config.aiaast.toml"
+  ".gemini/settings.aiaast.json"
+  ".windsurf/settings.aiaast.json"
+  ".cursor/settings.aiaast.json"
+)
+
+mapfile -t source_files < <(bash "${RESOLVED_TEMPLATE}/bootstrap/render-scaffold-profile.sh" "${RESOLVED_TEMPLATE}" --profile "${PROFILE}")
+missing_files=()
+drifted_files=()
+
+for rel in "${source_files[@]}"; do
+  rel="${rel#./}"
+  dest_rel="${rel}"
+  if [[ "${rel}" == "README.md" ]]; then
+    dest_rel="${readme_dest}"
+  fi
+
+  if [[ ! -e "${RESOLVED_TARGET}/${dest_rel}" ]]; then
+    missing_files+=("${dest_rel}")
+    continue
+  fi
+
+  if [[ "${rel}" == "README.md" ]]; then
+    if ! diff -q "${RESOLVED_TEMPLATE}/README.md" "${RESOLVED_TARGET}/${dest_rel}" >/dev/null 2>&1; then
+      drifted_files+=("${dest_rel}")
+    fi
+    continue
+  fi
+
+  if aiaast_is_template_diff_skip_path "${dest_rel}"; then
+    continue
+  fi
+
+  if ! diff -q "${RESOLVED_TEMPLATE}/${rel}" "${RESOLVED_TARGET}/${dest_rel}" >/dev/null 2>&1; then
+    drifted_files+=("${dest_rel}")
+  fi
+done
+
+echo "AIAST Update Report"
+echo "==================="
+echo ""
+echo "Target:            ${RESOLVED_TARGET}"
+echo "Template source:   ${RESOLVED_TEMPLATE}"
+echo "Installed version: ${installed_version}"
+echo "Source version:    ${source_version}"
+echo "System README:     ${readme_dest}"
+echo "Scaffold profile:  ${PROFILE}"
+echo ""
+
+if [[ ${#missing_files[@]} -eq 0 ]]; then
+  echo "Missing files: none"
+else
+  echo "Missing files (${#missing_files[@]}):"
+  printf '  - %s\n' "${missing_files[@]}"
+fi
+echo ""
+
+if [[ ${#drifted_files[@]} -eq 0 ]]; then
+  echo "Drifted template-managed files: none"
+else
+  echo "Drifted template-managed files (${#drifted_files[@]}):"
+  printf '  - %s\n' "${drifted_files[@]}"
+  if [[ ${REFRESH_MANAGED} -eq 0 ]]; then
+    echo ""
+    echo "These will be left untouched unless you pass --refresh-managed."
+  fi
+fi
+echo ""
+
+if [[ ${DRY_RUN} -eq 1 ]]; then
+  echo "Dry run only. No files were changed."
+  exit 0
+fi
+
+for rel in "${source_files[@]}"; do
+  rel="${rel#./}"
+  dest_rel="${rel}"
+  if [[ "${rel}" == "README.md" ]]; then
+    dest_rel="${readme_dest}"
+  fi
+
+  if [[ ! -e "${RESOLVED_TARGET}/${dest_rel}" ]]; then
+    aiaast_copy_rel_file "${RESOLVED_TEMPLATE}" "${rel}" "${RESOLVED_TARGET}" "${dest_rel}"
+    continue
+  fi
+
+  if [[ ${REFRESH_MANAGED} -eq 0 ]]; then
+    continue
+  fi
+
+  if [[ "${rel}" == "README.md" ]]; then
+    cp -p "${RESOLVED_TEMPLATE}/README.md" "${RESOLVED_TARGET}/${dest_rel}"
+    continue
+  fi
+
+  if aiaast_is_template_diff_skip_path "${dest_rel}"; then
+    continue
+  fi
+
+  if ! diff -q "${RESOLVED_TEMPLATE}/${rel}" "${RESOLVED_TARGET}/${dest_rel}" >/dev/null 2>&1; then
+    mkdir -p "${RESOLVED_TARGET}/.update_backups"
+    backup_name="$(basename "${dest_rel}").local_override.$(date +%s)"
+    backup_path="${RESOLVED_TARGET}/.update_backups/${backup_name}"
+    cp -p "${RESOLVED_TARGET}/${dest_rel}" "${backup_path}"
+    
+    # Generate diff for context
+    diff_file="${RESOLVED_TARGET}/.update_backups/${backup_name}.diff"
+    diff -u "${RESOLVED_TARGET}/${dest_rel}" "${RESOLVED_TEMPLATE}/${rel}" > "${diff_file}" || true
+    
+    # Append to a conflict log
+    echo "## Conflict in ${dest_rel}" >> "${RESOLVED_TARGET}/.update_backups/CONFLICT_TODO.md"
+    echo "Local file backed up to: \`${backup_name}\`" >> "${RESOLVED_TARGET}/.update_backups/CONFLICT_TODO.md"
+    echo "Diff saved to: \`${backup_name}.diff\`" >> "${RESOLVED_TARGET}/.update_backups/CONFLICT_TODO.md"
+    echo "" >> "${RESOLVED_TARGET}/.update_backups/CONFLICT_TODO.md"
+
+    # --refresh-managed means the operator has explicitly asked to restore the
+    # canonical template-managed files. The local copy was already backed up to
+    # .update_backups/ and recorded in CONFLICT_TODO.md above, so refresh cleanly
+    # from the template. We deliberately NEVER inject textual conflict markers:
+    # they corrupt every machine-parsed managed file (JSON/YAML/TOML, executable
+    # scripts) and the parsed managed docs (e.g. the instruction-precedence
+    # contract), they stack on every re-run until the file is unrecoverable, and
+    # they violate the contract that "refresh-managed --strict restores a fully
+    # valid repo". Operators reconcile any intentional local override from the
+    # backup + CONFLICT_TODO.md.
+    cp -p "${RESOLVED_TEMPLATE}/${rel}" "${RESOLVED_TARGET}/${dest_rel}"
+  fi
+done
+
+for rel in "${always_refresh_files[@]}"; do
+  if [[ -f "${RESOLVED_TEMPLATE}/${rel}" ]]; then
+    aiaast_copy_rel_file "${RESOLVED_TEMPLATE}" "${rel}" "${RESOLVED_TARGET}" "${rel}"
+  fi
+done
+
+for rel in "${source_files[@]}"; do
+  rel="${rel#./}"
+  dest_rel="${rel}"
+  if [[ "${rel}" == "README.md" ]]; then
+    dest_rel="${readme_dest}"
+  fi
+
+  if [[ ! -e "${RESOLVED_TARGET}/${dest_rel}" ]]; then
+    continue
+  fi
+
+  if [[ "${rel}" != "README.md" ]] && aiaast_is_template_diff_skip_path "${dest_rel}"; then
+    continue
+  fi
+
+  aiaast_sync_rel_file_mode "${RESOLVED_TEMPLATE}" "${rel}" "${RESOLVED_TARGET}" "${dest_rel}"
+done
+
+aiaast_refresh_onboarding_baseline "${RESOLVED_TARGET}/bootstrap" "${RESOLVED_TARGET}" "" "${REFRESH_MANAGED}"
+
+aiaast_write_install_metadata \
+  "${RESOLVED_TARGET}" \
+  "${RESOLVED_TEMPLATE}" \
+  "${source_version}" \
+  "copied-template" \
+  "${readme_dest}" \
+  "update-template" \
+  "${PROFILE}"
+
+# Manifest and onboarding hooks may refresh immediately before adapter emission.
+# Always re-pin the emitter script to the source template version so renderer
+# tables stay aligned with `generated_adapters` kinds (avoids skew on large jumps).
+if [[ -f "${RESOLVED_TEMPLATE}/bootstrap/generate-host-adapters.sh" ]]; then
+  aiaast_copy_rel_file "${RESOLVED_TEMPLATE}" "bootstrap/generate-host-adapters.sh" "${RESOLVED_TARGET}" "bootstrap/generate-host-adapters.sh"
+fi
+# Prune (opt-in): remove downstream files under fully template-owned trees that
+# no longer exist in the template. Without this, a file the template REMOVED
+# (e.g. Go source moved to internal/_deferred/) lingers downstream and can break
+# builds — refresh-managed overwrites but never deletes. Scoped to src/aiast-cli/
+# (100% template-owned, never app content); every removal is backed up first.
+if [[ ${PRUNE_MANAGED} -eq 1 ]]; then
+  # Fully template-owned trees safe to prune (no app/local content ever lives here).
+  AIAAST_PRUNE_OWNED_TREES=("src/aiast-cli")
+  for owned in "${AIAAST_PRUNE_OWNED_TREES[@]}"; do
+    src_tree="${RESOLVED_TEMPLATE}/${owned}"
+    dst_tree="${RESOLVED_TARGET}/${owned}"
+    [[ -d "${dst_tree}" ]] || continue
+    while IFS= read -r f; do
+      rel="${f#"${dst_tree}/"}"
+      case "${rel}" in .bin/*|*/.bin/*) continue ;; esac   # gitignored build artifacts
+      if [[ ! -e "${src_tree}/${rel}" ]]; then
+        bdir="${RESOLVED_TARGET}/.update_backups/pruned/${owned}/$(dirname "${rel}")"
+        mkdir -p "${bdir}"
+        cp -p "${f}" "${bdir}/" 2>/dev/null || true
+        rm -f "${f}"
+        echo "pruned (absent from template): ${owned}/${rel}"
+      fi
+    done < <(find "${dst_tree}" -type f 2>/dev/null)
+    find "${dst_tree}" -type d -empty -delete 2>/dev/null || true
+  done
+fi
+
+# Regenerate all managed surfaces atomically w.r.t. other agents: hold the
+# managed-surfaces lock for the whole sequence so a concurrent update/init can't
+# interleave and leave the surfaces mutually inconsistent. (verify-integrity
+# self-locks the separate integrity-manifest scope.)
+_aiaast_update_regen_surfaces() {
+  bash "${RESOLVED_TARGET}/bootstrap/generate-host-adapters.sh" "${RESOLVED_TARGET}" --write
+  bash "${RESOLVED_TARGET}/bootstrap/generate-system-key.sh" "${RESOLVED_TARGET}" --write
+  bash "${RESOLVED_TARGET}/bootstrap/generate-system-registry.sh" "${RESOLVED_TARGET}" --write
+  bash "${RESOLVED_TARGET}/bootstrap/generate-operating-profile.sh" "${RESOLVED_TARGET}" --write
+  bash "${RESOLVED_TARGET}/bootstrap/generate-capabilities-sheet.sh" "${RESOLVED_TARGET}" --write
+  bash "${RESOLVED_TARGET}/bootstrap/verify-integrity.sh" --generate --target "${RESOLVED_TARGET}"
+}
+aiaast_with_lock "${RESOLVED_TARGET}" managed-surfaces 10 -- _aiaast_update_regen_surfaces
+
+if [[ ${STRICT} -eq 1 ]]; then
+  bash "${RESOLVED_TEMPLATE}/bootstrap/validate-system.sh" "${RESOLVED_TARGET}" --strict --mode installed --validator-root "${RESOLVED_TEMPLATE}"
+  validation_command="bootstrap/update-template.sh ${RESOLVED_TARGET} --source <template-root> --strict"
+else
+  bash "${RESOLVED_TARGET}/bootstrap/validate-system.sh" "${RESOLVED_TARGET}"
+  validation_command="bootstrap/update-template.sh ${RESOLVED_TARGET} --source <template-root>"
+
+  set +e
+  canonical_validation_output="$(
+    "${RESOLVED_TEMPLATE}/bootstrap/aiast-cli" check-validate-layer "${RESOLVED_TARGET}" 2>&1
+  )"
+  canonical_validation_status=$?
+  set -e
+
+  if [[ ${canonical_validation_status} -ne 0 ]]; then
+    echo ""
+    echo "Post-update notice: canonical instruction-layer validation still fails against preserved installed surfaces."
+    printf '%s\n' "${canonical_validation_output}"
+    if [[ ${REFRESH_MANAGED} -eq 0 ]]; then
+      echo ""
+      echo "The update was additive only. Drifted template-managed files were preserved."
+      echo "Review the reported surfaces, then re-run with --refresh-managed or repair the repo-local instruction layer manually."
+    fi
+  fi
+fi
+
+aiaast_emit_template_sync_notice "${RESOLVED_TARGET}" "update-template" "${REFRESH_MANAGED}"
+
+# S19e — machine-readable meta-sync marker for the next agent's startup gate.
+# Encodes the changeset detected at lines 152+ (missing_files, drifted_files,
+# always_refresh_files) so reconcile-meta-sync.sh can cross-reference relevance.
+missing_csv="$(IFS=,; printf '%s' "${missing_files[*]:-}")"
+drifted_csv="$(IFS=,; printf '%s' "${drifted_files[*]:-}")"
+always_refresh_csv="$(IFS=,; printf '%s' "${always_refresh_files[*]:-}")"
+aiaast_emit_meta_sync_pending \
+  "${RESOLVED_TARGET}" \
+  "${RESOLVED_TEMPLATE}" \
+  "update-template" \
+  "${REFRESH_MANAGED}" \
+  "${missing_csv}" \
+  "${drifted_csv}" \
+  "${always_refresh_csv}"
+
+aiaast_record_validation_success \
+  "${RESOLVED_TARGET}" \
+  "${validation_command}" \
+  "AIAST update integrity, required files, config syntax, and awareness validation"
+
+echo "AIAST update complete."

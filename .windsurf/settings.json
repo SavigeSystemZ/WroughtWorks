@@ -1,0 +1,8 @@
+{
+  "_comment": "Per-app preserve-first Windsurf project settings. Customize freely. The meta-managed sibling .windsurf/settings.aiaast.json carries fleet-wide policy and must not be edited here. See _system/HOST_SETTINGS_BASELINE.md.",
+  "cascade": {
+    "contextFiles": [],
+    "memory": {}
+  },
+  "mcpServers": {}
+}

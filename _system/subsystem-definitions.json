@@ -1,0 +1,132 @@
+{
+  "_comment": "Curated semantics for the System Nervous System map. The generator (bootstrap/generate-system-nervous-system.sh) joins each subsystem with the enriched SYSTEM_REGISTRY.json: owner_file and validator are verified to exist (as a registry entry / bootstrap script) and downstream_impact is read from the owner_file's registry downstream_policy. purpose/failure_mode/recovery are human-authored. Keep this list to MAJOR subsystems — it is the one-page 'what matters first' control map, not a file index (that is CAPABILITIES.md / SYSTEM_REGISTRY.json).",
+  "version": "1.0.0",
+  "subsystems": [
+    {
+      "id": "instruction-layer",
+      "title": "Instruction layer & precedence",
+      "purpose": "Defines which repo-local files are authoritative and in what order agents obey them.",
+      "owner_file": "AGENTS.md",
+      "validator": "validate-instruction-layer.sh",
+      "failure_mode": "Agents follow the wrong/contradicting instructions or a host overlay overrides repo truth.",
+      "recovery_command": "bash bootstrap/detect-instruction-conflicts.sh . --strict"
+    },
+    {
+      "id": "context-routing",
+      "title": "Context routing & load order",
+      "purpose": "Tells an agent what to read first and which task-specific bundle to load instead of the whole repo.",
+      "owner_file": "_system/CONTEXT_INDEX.md",
+      "validator": "check-system-awareness.sh",
+      "failure_mode": "Agent misses required context or loads the wrong files and acts on stale assumptions.",
+      "recovery_command": "bash bootstrap/check-system-awareness.sh ."
+    },
+    {
+      "id": "registry-contract-graph",
+      "title": "Registry contract graph",
+      "purpose": "Enforced topology of every managed file: authority, owner, validator, downstream policy, drift severity.",
+      "owner_file": "_system/SYSTEM_REGISTRY.json",
+      "validator": "check-registry-contract-graph.sh",
+      "failure_mode": "A managed file drifts, becomes an orphan, or a critical file loses validator coverage.",
+      "recovery_command": "bash bootstrap/generate-system-registry.sh . --write && bash bootstrap/check-registry-contract-graph.sh ."
+    },
+    {
+      "id": "integrity",
+      "title": "Integrity signing",
+      "purpose": "HMAC-signed manifest proving managed files are unmodified since the last sign.",
+      "owner_file": "_system/INTEGRITY_MANIFEST.sha256",
+      "validator": "verify-integrity.sh",
+      "failure_mode": "Tampered or corrupted managed file goes undetected, or a stale manifest blocks updates.",
+      "recovery_command": "bash bootstrap/verify-integrity.sh --generate --target . && bash bootstrap/verify-integrity.sh --check --target ."
+    },
+    {
+      "id": "validation-doctor",
+      "title": "Validation & doctor",
+      "purpose": "Single structural+integrity+awareness health gate agents run before and after work.",
+      "owner_file": "bootstrap/system-doctor.sh",
+      "validator": "validate-system.sh",
+      "failure_mode": "Repo is structurally broken but work proceeds anyway.",
+      "recovery_command": "bash bootstrap/system-doctor.sh . --strict --heal --report"
+    },
+    {
+      "id": "scaffold-isolation",
+      "title": "Scaffold & isolation",
+      "purpose": "Copies the template into a new app repo with correct include/exclude and no cross-repo bleed.",
+      "owner_file": "_system/scaffold-profiles.json",
+      "validator": "check-scaffold-isolation-gate.sh",
+      "failure_mode": "Scaffold leaks factory/MOS surfaces downstream or contaminates another repo.",
+      "recovery_command": "bash bootstrap/validate-scaffold-output.sh . --profile standard --dry-run"
+    },
+    {
+      "id": "app-identity",
+      "title": "App identity & definition",
+      "purpose": "Distinguishes parent-template from a blank downstream app and blocks coding before the app is defined.",
+      "owner_file": "_system/APP_REPO_IDENTITY.md",
+      "validator": "check-app-definition-state.sh",
+      "failure_mode": "A blank app repo turns into a random codebase, or the template is edited as if it were an app.",
+      "recovery_command": "bash bootstrap/check-app-definition-state.sh ."
+    },
+    {
+      "id": "self-improvement",
+      "title": "Project-local self-improvement",
+      "purpose": "Safe detect->propose->apply->validate->record loop, local-only, never mutating the parent template.",
+      "owner_file": "_system/PROJECT_LOCAL_SELF_IMPROVEMENT_PROTOCOL.md",
+      "validator": "check-local-self-improvement.sh",
+      "failure_mode": "A downstream improvement escapes its repo or a self-write damages the operating layer.",
+      "recovery_command": "bash bootstrap/check-local-self-improvement.sh ."
+    },
+    {
+      "id": "agent-coordination",
+      "title": "Agent coordination & locks",
+      "purpose": "Lease-based locks and live roster so multiple agents do not collide on shared state.",
+      "owner_file": "_system/MULTI_AGENT_COORDINATION.md",
+      "validator": "check-agent-locks.sh",
+      "failure_mode": "Two agents edit the same operating surface and lose each other's writes.",
+      "recovery_command": "bash bootstrap/reap-stale-leases.sh . && bash bootstrap/check-agent-locks.sh ."
+    },
+    {
+      "id": "mcp-isolation",
+      "title": "MCP project isolation",
+      "purpose": "Keeps MCP server config and identity scoped to this repo, never bleeding across projects.",
+      "owner_file": "_system/mcp/MCP_PROJECT_ISOLATION_POLICY.md",
+      "validator": "check-mcp-project-isolation.sh",
+      "failure_mode": "MCP config or app-id from another repo bleeds into this one.",
+      "recovery_command": "bash bootstrap/check-mcp-project-isolation.sh ."
+    },
+    {
+      "id": "host-adapters",
+      "title": "Host adapters",
+      "purpose": "Generated per-host instruction surfaces (Claude/Codex/Gemini/Cursor/Copilot/Windsurf/Antigravity) from AGENTS.md.",
+      "owner_file": "_system/host-adapter-manifest.json",
+      "validator": "check-host-adapter-alignment.sh",
+      "failure_mode": "A host adapter drifts from the canonical contract and instructs an agent incorrectly.",
+      "recovery_command": "bash bootstrap/generate-host-adapters.sh . --write && bash bootstrap/check-host-adapter-alignment.sh ."
+    },
+    {
+      "id": "git-mirror",
+      "title": "Git mirror & discipline",
+      "purpose": "Local-authoritative single-main mirror model; GitHub is a backup, not the source of truth.",
+      "owner_file": "_system/GIT_SIDE_MIRROR_POLICY.md",
+      "validator": "check-git-discipline.sh",
+      "failure_mode": "Branch sprawl, divergent main, or treating the remote as authoritative.",
+      "recovery_command": "bash bootstrap/check-git-discipline.sh ."
+    },
+    {
+      "id": "quality-gates",
+      "title": "Quality & evidence",
+      "purpose": "Scores world-class quality and verifies claims are backed by evidence.",
+      "owner_file": "_system/QUALITY_SCORE_POLICY.json",
+      "validator": "score-quality-gates.sh",
+      "failure_mode": "Quality silently regresses or success is claimed without evidence.",
+      "recovery_command": "bash bootstrap/score-quality-gates.sh ."
+    },
+    {
+      "id": "release-readiness",
+      "title": "Release readiness",
+      "purpose": "Versioned platform release train with sealed, checksummed release packets.",
+      "owner_file": "_system/RELEASE_READINESS_PROTOCOL.md",
+      "validator": "validate-release-packet.sh",
+      "failure_mode": "An unvalidated or unreproducible template state ships to the fleet.",
+      "recovery_command": "bash bootstrap/generate-release-packet.sh . && bash bootstrap/validate-release-packet.sh . --latest"
+    }
+  ]
+}

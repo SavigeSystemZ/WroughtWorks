@@ -1,0 +1,44 @@
+{
+  "_comment": "Drives bootstrap/check-claim-evidence-map.sh. Each claim has a case-insensitive regex; a line matching it must have at least one evidence regex within +/- window lines, else it is an UNSUPPORTED claim. Purpose: attack hallucinated completion in handoff/continuity surfaces. Conservative by design — patterns target explicit success claims that should always sit next to a command, token, path, or SHA. See _system/CLAIM_EVIDENCE_MAP_PROTOCOL.md.",
+  "version": "1.0.0",
+  "default_targets": [
+    "WHERE_LEFT_OFF.md",
+    "CHANGELOG.md",
+    "RELEASE_NOTES.md",
+    "_system/context/CURRENT_STATUS.md",
+    "_system/self-improvement/ledger.jsonl"
+  ],
+  "window": 8,
+  "claims": [
+    {
+      "id": "tests-pass",
+      "claim": "\\btests?\\s+(pass(ed|ing)?|are\\s+green|succeed)",
+      "evidence": ["bash\\s", "pytest", "npm\\s+test", "go\\s+test", "[a-z_]+_ok\\b", "\\b\\d+/\\d+\\b", "exit\\s*[:=]?\\s*0", "kill_rate", "cases="]
+    },
+    {
+      "id": "build-works",
+      "claim": "\\bbuild(s|ed)?\\s+(work|ok|green|succeed|clean|pass)",
+      "evidence": ["go\\s+build", "build=ok", "artifact", "\\.(apk|jar|deb|exe|whl)\\b", "binary", "bash\\s", "[a-z_]+_ok\\b"]
+    },
+    {
+      "id": "security-reviewed",
+      "claim": "\\bsecurity\\s+review(ed|\\s+(done|complete|pass))?",
+      "evidence": ["threat", "checklist", "sast", "bandit", "scan", "CVE", "vuln", "_ok\\b"]
+    },
+    {
+      "id": "scaffold-complete",
+      "claim": "\\bscaffold(ed|ing)?\\s+(complete|done|clean|ok|isolation\\s+green)",
+      "evidence": ["isolation", "role", "gate", "[a-z_]+_ok\\b", "ok=\\d+", "files"]
+    },
+    {
+      "id": "github-mirrored",
+      "claim": "\\b(pushed|mirror(ed)?)\\s+(to\\s+)?(github|origin|the\\s+mirror|main)\\b",
+      "evidence": ["\\borigin/main\\b", "\\blocal=\\S+\\s+origin=", "[0-9a-f]{7,40}", "->\\s*main", "git\\s+push"]
+    },
+    {
+      "id": "validation-complete",
+      "claim": "\\bvalidation\\s+(complete|pass(ed)?|green)\\b",
+      "evidence": ["bash\\s", "[a-z_]+_ok\\b", "system_ok", "kill_rate", "quality_score", "\\b\\d+/\\d+\\b"]
+    }
+  ]
+}

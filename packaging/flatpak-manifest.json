@@ -1,0 +1,31 @@
+{
+  "app-id": "io.aiaast.wroughtworks",
+  "runtime": "org.freedesktop.Platform",
+  "runtime-version": "24.08",
+  "sdk": "org.freedesktop.Sdk",
+  "command": "wroughtworks",
+  "finish-args": [
+    "--share=network",
+    "--socket=fallback-x11",
+    "--socket=wayland",
+    "--device=dri",
+    "--filesystem=xdg-config/wroughtworks:create",
+    "--filesystem=xdg-data/wroughtworks:create"
+  ],
+  "modules": [
+    {
+      "name": "wroughtworks",
+      "buildsystem": "simple",
+      "build-commands": [
+        "install -Dm755 ./dist/wroughtworks /app/bin/wroughtworks",
+        "install -Dm644 ./packaging/io.aiaast.wroughtworks.desktop /app/share/applications/io.aiaast.wroughtworks.desktop"
+      ],
+      "sources": [
+        {
+          "type": "dir",
+          "path": ".."
+        }
+      ]
+    }
+  ]
+}

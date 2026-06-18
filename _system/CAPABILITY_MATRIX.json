@@ -1,0 +1,28 @@
+{
+  "capabilities": {
+    "ci-reporter": [
+      "_system/plugins/ci-integration/run.sh"
+    ],
+    "scaffold-generator": [
+      "_system/plugins/ci-integration/run.sh"
+    ],
+    "local-model-abliteration": [
+      "_system/plugins/heretic-abliteration/run.sh"
+    ],
+    "local-model-refusal-analysis": [
+      "_system/plugins/heretic-abliteration/run.sh"
+    ],
+    "metrics-collector": [
+      "_system/plugins/observability-setup/run.sh"
+    ],
+    "health-monitor": [
+      "_system/plugins/observability-setup/run.sh"
+    ],
+    "security-scanner": [
+      "_system/plugins/security-scan/run.sh"
+    ],
+    "audit-reporter": [
+      "_system/plugins/security-scan/run.sh"
+    ]
+  }
+}

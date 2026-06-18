@@ -1,0 +1,10 @@
+{
+  "_comment": "Per-app preserve-first Copilot config. Customize freely. The meta-managed sibling .github/copilot-config.aiaast.json carries fleet-wide policy and must not be edited here. See _system/HOST_SETTINGS_BASELINE.md.",
+  "instructions": {
+    "files": [],
+    "extra_context": []
+  },
+  "mcp": {
+    "servers": []
+  }
+}

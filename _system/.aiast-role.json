@@ -1,0 +1,14 @@
+{
+  "schema_version": "1.0.0",
+  "role": "downstream-app",
+  "comment": "This file marks the role of this AIAST install. In the parent template repo, role='parent-template'. In any scaffolded downstream app repo, role='downstream-app' and an _system/app-local-namespace.json is required. Bootstrap scripts read this sentinel to refuse cross-role invocations (e.g. init-project on a parent template, or downstream-only checks on the template). See _system/APP_LOCAL_NAMESPACE_CONTRACT.md.",
+  "set_at": "2026-06-18T02:49:14Z",
+  "set_by": "init-project.sh",
+  "history": [
+    {
+      "ts": "2026-06-18T02:49:14Z",
+      "from": "parent-template",
+      "to": "downstream-app"
+    }
+  ]
+}

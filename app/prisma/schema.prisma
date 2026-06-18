@@ -1,0 +1,184 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  ADMIN
+}
+
+enum ProductStatus {
+  AVAILABLE
+  RESERVED
+  SOLD
+  HIDDEN
+  DRAFT
+}
+
+enum ShippingMode {
+  SHIPPABLE
+  OVERSIZED
+  FREIGHT
+  LOCAL_PICKUP_ONLY
+}
+
+enum OrderStatus {
+  PENDING
+  PAID
+  FULFILLED
+  CANCELLED
+}
+
+enum PaymentStatus {
+  UNPAID
+  PAID
+  REFUNDED
+}
+
+enum FulfillmentMode {
+  SHIPPED
+  PICKUP
+}
+
+enum InquiryType {
+  QUOTE
+  RESERVE
+  CUSTOM
+  QUESTION
+}
+
+enum InquiryStatus {
+  OPEN
+  IN_PROGRESS
+  CLOSED
+}
+
+model User {
+  id           String     @id @default(uuid())
+  email        String     @unique
+  passwordHash String
+  role         Role       @default(ADMIN)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  AuditLog     AuditLog[]
+}
+
+model Category {
+  id       String    @id @default(uuid())
+  name     String
+  slug     String    @unique
+  products Product[]
+}
+
+model MaterialSource {
+  id              String    @id @default(uuid())
+  woodType        String
+  sourceRegion    String
+  isReclaimed     Boolean   @default(false)
+  provenanceNotes String?   @db.Text
+  products        Product[]
+}
+
+model Product {
+  id               String          @id @default(uuid())
+  title            String
+  slug             String          @unique
+  description      String          @db.Text
+  status           ProductStatus   @default(DRAFT)
+  category         Category        @relation(fields: [categoryId], references: [id])
+  categoryId       String
+  price            Decimal
+  currency         String          @default("USD")
+  dimensions       String?
+  weightEstimate   String?
+  materialSource   MaterialSource? @relation(fields: [materialSourceId], references: [id])
+  materialSourceId String?
+  finish           String?
+  careNotes        String?         @db.Text
+  shippingMode     ShippingMode    @default(SHIPPABLE)
+  pickupAvailable  Boolean         @default(true)
+  featured         Boolean         @default(false)
+  uniquenessFlag   Boolean         @default(true)
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  images      ProductImage[]
+  orderItems  OrderItem[]
+  inquiries   Inquiry[]
+}
+
+model ProductImage {
+  id         String   @id @default(uuid())
+  product    Product  @relation(fields: [productId], references: [id])
+  productId  String
+  url        String
+  altText    String?
+  sortOrder  Int      @default(0)
+  isPrimary  Boolean  @default(false)
+  dimensions String?
+  createdAt  DateTime @default(now())
+}
+
+model Order {
+  id                      String          @id @default(uuid())
+  customerEmail           String
+  customerName            String
+  status                  OrderStatus     @default(PENDING)
+  paymentStatus           PaymentStatus   @default(UNPAID)
+  fulfillmentMode         FulfillmentMode @default(SHIPPED)
+  stripeCheckoutSessionId String?
+  stripePaymentIntentId   String?
+  totalAmount             Decimal
+  createdAt               DateTime        @default(now())
+  updatedAt               DateTime        @updatedAt
+
+  items OrderItem[]
+}
+
+model OrderItem {
+  id            String  @id @default(uuid())
+  order         Order   @relation(fields: [orderId], references: [id])
+  orderId       String
+  product       Product @relation(fields: [productId], references: [id])
+  productId     String
+  priceSnapshot Decimal
+  quantity      Int     @default(1)
+}
+
+model Inquiry {
+  id              String        @id @default(uuid())
+  type            InquiryType
+  product         Product?      @relation(fields: [productId], references: [id])
+  productId       String?
+  customerName    String
+  customerEmail   String
+  message         String        @db.Text
+  dimensionsNotes String?       @db.Text
+  status          InquiryStatus @default(OPEN)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+}
+
+model AuditLog {
+  id             String   @id @default(uuid())
+  user           User     @relation(fields: [userId], references: [id])
+  userId         String
+  action         String
+  entityId       String
+  entityType     String
+  beforeSnapshot Json?
+  afterSnapshot  Json?
+  createdAt      DateTime @default(now())
+}
+
+model SiteSettings {
+  id             String   @id @default("singleton")
+  brandCopy      String?  @db.Text
+  contactEmail   String?
+  socialLinks    Json?
+  policySnippets Json?
+  updatedAt      DateTime @updatedAt
+}

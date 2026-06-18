@@ -1,0 +1,12 @@
+{
+  "app_name": "WroughtWorks",
+  "install_mode": "copied-template",
+  "installed_at": "2026-06-18T02:48:43Z",
+  "last_event": "install",
+  "scaffold_profile": "standard",
+  "source_template": "TEMPLATE",
+  "system_readme_path": "README.md",
+  "template_name": "AIAST",
+  "template_version": "1.25.0",
+  "updated_at": "2026-06-18T02:48:43Z"
+}

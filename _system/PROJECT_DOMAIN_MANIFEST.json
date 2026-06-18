@@ -1,0 +1,24 @@
+{
+  "$schema": "schemas/project-domain-manifest.schema.json",
+  "schema_version": 1,
+  "product_summary": "AIAST installable agent operating system and app-builder meta-system contracts for downstream application repositories.",
+  "primary_domains": [
+    "agent operating system template",
+    "repository governance",
+    "installable AIAST contracts",
+    "app-builder meta-system design"
+  ],
+  "cross_domain_confirmation_phrase": "CONFIRM_CROSS_DOMAIN_INSTRUCTION",
+  "instruction_mismatch_guards": [
+    {
+      "id": "runtime-feature-build-inside-template-source",
+      "description": "Detects direct downstream app runtime build requests while operating in the template source repo.",
+      "keywords": ["implement ui screen", "build endpoint", "create feature in app", "ship runtime code"]
+    },
+    {
+      "id": "off-domain-security-lab-request",
+      "description": "Detects unrelated offensive-security lab pivots not tied to AIAST or app-builder contract work.",
+      "keywords": ["wpa handshake capture", "metasploit module", "malware payload", "buffer overflow exploit"]
+    }
+  ]
+}

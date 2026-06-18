@@ -1,0 +1,160 @@
+{
+  "subsystem_count": 14,
+  "subsystems": [
+    {
+      "authority_level": "core",
+      "downstream_impact": "copy",
+      "failure_mode": "Agents follow the wrong/contradicting instructions or a host overlay overrides repo truth.",
+      "id": "instruction-layer",
+      "owner_file": "AGENTS.md",
+      "purpose": "Defines which repo-local files are authoritative and in what order agents obey them.",
+      "recovery_command": "bash bootstrap/detect-instruction-conflicts.sh . --strict",
+      "title": "Instruction layer & precedence",
+      "validator": "validate-instruction-layer.sh"
+    },
+    {
+      "authority_level": "core",
+      "downstream_impact": "copy",
+      "failure_mode": "Agent misses required context or loads the wrong files and acts on stale assumptions.",
+      "id": "context-routing",
+      "owner_file": "_system/CONTEXT_INDEX.md",
+      "purpose": "Tells an agent what to read first and which task-specific bundle to load instead of the whole repo.",
+      "recovery_command": "bash bootstrap/check-system-awareness.sh .",
+      "title": "Context routing & load order",
+      "validator": "check-system-awareness.sh"
+    },
+    {
+      "authority_level": "generated",
+      "downstream_impact": "generate",
+      "failure_mode": "A managed file drifts, becomes an orphan, or a critical file loses validator coverage.",
+      "id": "registry-contract-graph",
+      "owner_file": "_system/SYSTEM_REGISTRY.json",
+      "purpose": "Enforced topology of every managed file: authority, owner, validator, downstream policy, drift severity.",
+      "recovery_command": "bash bootstrap/generate-system-registry.sh . --write && bash bootstrap/check-registry-contract-graph.sh .",
+      "title": "Registry contract graph",
+      "validator": "check-registry-contract-graph.sh"
+    },
+    {
+      "authority_level": "generated",
+      "downstream_impact": "generate",
+      "failure_mode": "Tampered or corrupted managed file goes undetected, or a stale manifest blocks updates.",
+      "id": "integrity",
+      "owner_file": "_system/INTEGRITY_MANIFEST.sha256",
+      "purpose": "HMAC-signed manifest proving managed files are unmodified since the last sign.",
+      "recovery_command": "bash bootstrap/verify-integrity.sh --generate --target . && bash bootstrap/verify-integrity.sh --check --target .",
+      "title": "Integrity signing",
+      "validator": "verify-integrity.sh"
+    },
+    {
+      "authority_level": "validator",
+      "downstream_impact": "copy",
+      "failure_mode": "Repo is structurally broken but work proceeds anyway.",
+      "id": "validation-doctor",
+      "owner_file": "bootstrap/system-doctor.sh",
+      "purpose": "Single structural+integrity+awareness health gate agents run before and after work.",
+      "recovery_command": "bash bootstrap/system-doctor.sh . --strict --heal --report",
+      "title": "Validation & doctor",
+      "validator": "validate-system.sh"
+    },
+    {
+      "authority_level": "core",
+      "downstream_impact": "copy",
+      "failure_mode": "Scaffold leaks factory/MOS surfaces downstream or contaminates another repo.",
+      "id": "scaffold-isolation",
+      "owner_file": "_system/scaffold-profiles.json",
+      "purpose": "Copies the template into a new app repo with correct include/exclude and no cross-repo bleed.",
+      "recovery_command": "bash bootstrap/validate-scaffold-output.sh . --profile standard --dry-run",
+      "title": "Scaffold & isolation",
+      "validator": "check-scaffold-isolation-gate.sh"
+    },
+    {
+      "authority_level": "core",
+      "downstream_impact": "copy",
+      "failure_mode": "A blank app repo turns into a random codebase, or the template is edited as if it were an app.",
+      "id": "app-identity",
+      "owner_file": "_system/APP_REPO_IDENTITY.md",
+      "purpose": "Distinguishes parent-template from a blank downstream app and blocks coding before the app is defined.",
+      "recovery_command": "bash bootstrap/check-app-definition-state.sh .",
+      "title": "App identity & definition",
+      "validator": "check-app-definition-state.sh"
+    },
+    {
+      "authority_level": "core",
+      "downstream_impact": "copy",
+      "failure_mode": "A downstream improvement escapes its repo or a self-write damages the operating layer.",
+      "id": "self-improvement",
+      "owner_file": "_system/PROJECT_LOCAL_SELF_IMPROVEMENT_PROTOCOL.md",
+      "purpose": "Safe detect->propose->apply->validate->record loop, local-only, never mutating the parent template.",
+      "recovery_command": "bash bootstrap/check-local-self-improvement.sh .",
+      "title": "Project-local self-improvement",
+      "validator": "check-local-self-improvement.sh"
+    },
+    {
+      "authority_level": "core",
+      "downstream_impact": "copy",
+      "failure_mode": "Two agents edit the same operating surface and lose each other's writes.",
+      "id": "agent-coordination",
+      "owner_file": "_system/MULTI_AGENT_COORDINATION.md",
+      "purpose": "Lease-based locks and live roster so multiple agents do not collide on shared state.",
+      "recovery_command": "bash bootstrap/reap-stale-leases.sh . && bash bootstrap/check-agent-locks.sh .",
+      "title": "Agent coordination & locks",
+      "validator": "check-agent-locks.sh"
+    },
+    {
+      "authority_level": "runtime-template",
+      "downstream_impact": "copy",
+      "failure_mode": "MCP config or app-id from another repo bleeds into this one.",
+      "id": "mcp-isolation",
+      "owner_file": "_system/mcp/MCP_PROJECT_ISOLATION_POLICY.md",
+      "purpose": "Keeps MCP server config and identity scoped to this repo, never bleeding across projects.",
+      "recovery_command": "bash bootstrap/check-mcp-project-isolation.sh .",
+      "title": "MCP project isolation",
+      "validator": "check-mcp-project-isolation.sh"
+    },
+    {
+      "authority_level": "generated",
+      "downstream_impact": "generate",
+      "failure_mode": "A host adapter drifts from the canonical contract and instructs an agent incorrectly.",
+      "id": "host-adapters",
+      "owner_file": "_system/host-adapter-manifest.json",
+      "purpose": "Generated per-host instruction surfaces (Claude/Codex/Gemini/Cursor/Copilot/Windsurf/Antigravity) from AGENTS.md.",
+      "recovery_command": "bash bootstrap/generate-host-adapters.sh . --write && bash bootstrap/check-host-adapter-alignment.sh .",
+      "title": "Host adapters",
+      "validator": "check-host-adapter-alignment.sh"
+    },
+    {
+      "authority_level": "core",
+      "downstream_impact": "copy",
+      "failure_mode": "Branch sprawl, divergent main, or treating the remote as authoritative.",
+      "id": "git-mirror",
+      "owner_file": "_system/GIT_SIDE_MIRROR_POLICY.md",
+      "purpose": "Local-authoritative single-main mirror model; GitHub is a backup, not the source of truth.",
+      "recovery_command": "bash bootstrap/check-git-discipline.sh .",
+      "title": "Git mirror & discipline",
+      "validator": "check-git-discipline.sh"
+    },
+    {
+      "authority_level": "core",
+      "downstream_impact": "copy",
+      "failure_mode": "Quality silently regresses or success is claimed without evidence.",
+      "id": "quality-gates",
+      "owner_file": "_system/QUALITY_SCORE_POLICY.json",
+      "purpose": "Scores world-class quality and verifies claims are backed by evidence.",
+      "recovery_command": "bash bootstrap/score-quality-gates.sh .",
+      "title": "Quality & evidence",
+      "validator": "score-quality-gates.sh"
+    },
+    {
+      "authority_level": "core",
+      "downstream_impact": "copy",
+      "failure_mode": "An unvalidated or unreproducible template state ships to the fleet.",
+      "id": "release-readiness",
+      "owner_file": "_system/RELEASE_READINESS_PROTOCOL.md",
+      "purpose": "Versioned platform release train with sealed, checksummed release packets.",
+      "recovery_command": "bash bootstrap/generate-release-packet.sh . && bash bootstrap/validate-release-packet.sh . --latest",
+      "title": "Release readiness",
+      "validator": "validate-release-packet.sh"
+    }
+  ],
+  "version": "1.0.0"
+}
